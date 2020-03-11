@@ -1,13 +1,42 @@
 """
-ensemble of feedforward neural networks
-tensorflow
+ensemble of convolutional neural networks
+tensorflow 
 cross entropy loss function
-softmax activation function
-gradient descent optimizer
+relu convolution activation function
+max pooling
+softmax fully connected activation function
+adam optimizer
 """
 
 import tensorflow as tf
 from tensorflow.examples.tutorials.mnist import input_data
+
+
+def convolution_layer(input, num_filters, filter_size=5, strides=1, k=2):
+	num_inputs = input.get_shape()[-1]
+	shape = [filter_size, filter_size, num_inputs, num_filters]
+	weights = tf.Variable(tf.random.truncated_normal(shape, stddev=0.05))
+	biases = tf.Variable(tf.constant(0.05, shape=[num_filters]))
+	layer = tf.nn.conv2d(input, filter=weights, strides=[1, strides, strides, 1], padding='SAME') + biases
+	layer = tf.nn.max_pool2d(layer, ksize=[1, k, k, 1], strides=[1, k, k, 1], padding='SAME')
+	return tf.nn.relu(layer)
+
+
+def flatten_layer(layer):
+	layer_shape = layer.get_shape()
+	num_features = layer_shape[1:4].num_elements()
+	return tf.reshape(layer, [-1, num_features])
+
+
+def fully_connected_layer(input, num_outputs, relu=True):
+	num_inputs = input.get_shape()[-1]
+	weights = tf.Variable(tf.truncated_normal([num_inputs, num_outputs], stddev=0.05))
+	biases = tf.Variable(tf.constant(0.05, shape=[num_outputs]))
+	layer = tf.matmul(input, weights) + biases
+	if relu:
+		return tf.nn.relu(layer)
+	else:
+		return layer
 
 
 def vote(tensor):
@@ -22,14 +51,22 @@ class NeuralNetwork:
 		x = tf.get_default_graph().get_tensor_by_name('ensemble/x:0')
 		y = tf.get_default_graph().get_tensor_by_name('ensemble/y:0')
 		
-		num_inputs = x.get_shape()[-1]
-		weights = tf.Variable(tf.zeros([num_inputs, num_classes]))
-		biases = tf.Variable([tf.zeros([num_classes])])
-		self.logits = tf.matmul(x, weights) + biases
+		# Layer 0 = Reshape: 784 -> 28x28@1
+		x_img = tf.reshape(x, shape=[-1, 28, 28, 1])
+		# Layer 1 = Convolution + Pooling: 28x28@1 -> 14x14@16
+		conv_layer1 = convolution_layer(x_img, num_filters=16)
+		# Layer 2 = Convolution + Pooling: 14x14@16 -> 7x7@32
+		conv_layer2 = convolution_layer(conv_layer1, num_filters=32)
+		# Layer 3 = Flatten: 7x7@32 -> 1568
+		flat_layer = flatten_layer(conv_layer2)
+		# Layer 4 = Fully Connected: 1568 -> 128
+		fc_layer = fully_connected_layer(flat_layer, num_outputs=128)
+		# Layer 5 = Logits: 128 -> 10
+		self.logits = fully_connected_layer(fc_layer, num_outputs=num_classes, relu=False)
 		
 		cross_entropy = tf.nn.softmax_cross_entropy_with_logits_v2(logits=self.logits, labels=y)
 		self.loss = tf.reduce_mean(cross_entropy)
-		self.optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(self.loss)
+		self.optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(self.loss)
 		
 		self.prediction = tf.argmax(self.logits, axis=1)
 		correct_prediction = tf.equal(self.prediction, tf.argmax(y, axis=1))
@@ -42,7 +79,7 @@ class Ensemble:
 		self.sess = tf.Session()
 		
 		self.models = 3
-		self.learning_rate = 0.5
+		self.learning_rate = 0.001
 		self.batch_size = 128
 		
 		self.num_inputs = 784
@@ -106,4 +143,4 @@ class Ensemble:
 
 if __name__ == '__main__':
 	model = Ensemble()
-	model.train(300)
+	model.train(100)
