@@ -1,13 +1,11 @@
 """
 ensemble of feedforward neural networks
 tensorflow
-cross entropy loss function
-softmax activation function
-gradient descent optimizer
 """
 
 import tensorflow as tf
 from tensorflow.examples.tutorials.mnist import input_data
+from feedforward import FNN
 
 
 def vote(tensor):
@@ -17,31 +15,10 @@ def vote(tensor):
 	return prediction
 
 
-class NeuralNetwork:
-	def __init__(self, num_classes, learning_rate):
-		x = tf.get_default_graph().get_tensor_by_name('ensemble/x:0')
-		y = tf.get_default_graph().get_tensor_by_name('ensemble/y:0')
-		
-		num_inputs = x.get_shape()[-1]
-		weights = tf.Variable(tf.zeros([num_inputs, num_classes]))
-		biases = tf.Variable([tf.zeros([num_classes])])
-		self.logits = tf.matmul(x, weights) + biases
-		
-		cross_entropy = tf.nn.softmax_cross_entropy_with_logits_v2(logits=self.logits, labels=y)
-		self.loss = tf.reduce_mean(cross_entropy)
-		self.optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(self.loss)
-		
-		self.prediction = tf.argmax(self.logits, axis=1)
-		correct_prediction = tf.equal(self.prediction, tf.argmax(y, axis=1))
-		self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-		self.predict = tf.nn.softmax(self.logits)
-
-
 class Ensemble:
 	def __init__(self):
 		self.sess = tf.Session()
 		
-		self.models = 3
 		self.learning_rate = 0.5
 		self.batch_size = 128
 		
@@ -64,7 +41,11 @@ class Ensemble:
 			self.x = tf.placeholder(tf.float32, [None, self.num_inputs], name='x')
 			self.y = tf.placeholder(tf.float32, [None, self.num_classes], name='y')
 		
-		self.networks = [NeuralNetwork(self.num_classes, self.learning_rate) for _ in range(self.models)]
+		self.networks = [
+			FNN(self.num_classes, self.learning_rate),
+			FNN(self.num_classes, self.learning_rate),
+			FNN(self.num_classes, self.learning_rate)
+		]
 		self.loss = tf.reduce_mean([net.loss for net in self.networks])
 		
 		predictions = tf.stack([net.prediction for net in self.networks], axis=-1)
