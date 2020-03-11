@@ -1,5 +1,5 @@
 """
-feedforward neural network
+ensemble of feedforward neural networks
 tensorflow
 cross entropy loss function
 softmax activation function
@@ -69,7 +69,7 @@ class Ensemble:
 				feed_dict = {net.x: self.X_valid, net.y: self.y_valid}
 				valid_loss, valid_acc = self.sess.run([net.loss, net.accuracy], feed_dict=feed_dict)
 				
-				print(f'\tnetwork {idx}:',
+				print(f'\tnetwork {idx + 1}:',
 					f'train loss = {train_loss:.4f},',
 					f'train acc = {train_acc:.4f},',
 					f'valid loss = {valid_loss:.4f},',
@@ -81,7 +81,7 @@ class Ensemble:
 		for idx, net in enumerate(self.networks):
 			feed_dict = {net.x: self.X_test, net.y: self.y_test}
 			loss, acc = self.sess.run([net.loss, net.accuracy], feed_dict=feed_dict)
-			print(f'network {idx}: test loss = {loss:.4f}, test acc = {acc:.4f}')
+			print(f'network {idx + 1}: test loss = {loss:.4f}, test acc = {acc:.4f}')
 		
 		
 	
