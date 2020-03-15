@@ -1,19 +1,12 @@
 """
-ensemble of convolutional neural networks
-tensorflow
-cross entropy loss function
-relu activation function
-max pooling
-softmax logits
-adam optimizer
-based on LeNet and VGGNet
+Ensemble of Convolutional Neural Networks
+MNIST Classifiers
+LeNet, AlexNet and VGGNet
 """
 
 import tensorflow as tf
 from tensorflow.examples.tutorials.mnist import input_data
-from lenet import LeNet
-from alexnet import AlexNet
-from vggnet import VGGNet
+from mnist_networks import LeNet, AlexNet, VGGNet
 
 
 def vote(tensor):
@@ -49,11 +42,7 @@ class Ensemble:
 			self.x = tf.placeholder(tf.float32, [None, self.num_inputs], name='x')
 			self.y = tf.placeholder(tf.float32, [None, self.num_classes], name='y')
 		
-		self.networks = [
-			LeNet(self.num_classes, self.learning_rate),
-			AlexNet(self.num_classes, self.learning_rate),
-			VGGNet(self.num_classes, self.learning_rate)
-		]
+		self.networks = [LeNet(), AlexNet(), VGGNet()]
 		self.loss = tf.reduce_mean([net.loss for net in self.networks])
 		
 		predictions = tf.stack([net.prediction for net in self.networks], axis=-1)
@@ -95,4 +84,4 @@ class Ensemble:
 
 if __name__ == '__main__':
 	model = Ensemble()
-	model.train(100)
+	model.train(10)
