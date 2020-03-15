@@ -6,7 +6,7 @@ relu activation function
 max pooling
 softmax logits
 adam optimizer
-based on VGGNet
+based on AlexNet
 """
 
 import tensorflow as tf
@@ -59,7 +59,7 @@ def fully_connected_layer(inputs, num_outputs, relu=True):
 		return layer
 
 
-class VGGNet:
+class AlexNet:
 	def __init__(self, num_classes, learning_rate):
 		x = tf.get_default_graph().get_tensor_by_name('ensemble/x:0')
 		y = tf.get_default_graph().get_tensor_by_name('ensemble/y:0')
@@ -67,24 +67,20 @@ class VGGNet:
 		# Layer 0 = Reshape: 784 -> 28x28@1
 		x_img = tf.reshape(x, shape=[-1, 28, 28, 1])
 		# Layer 1 = Convolution: 28x28@1 -> 28x28@32 + ReLU
-		conv1 = convolution_layer(x_img, filters=32, kernel_size=3, padding='SAME')
+		conv1 = convolution_layer(x_img, filters=32, kernel_size=11, padding='SAME')
 		# Layer 2 = Pooling: 28x28@32 -> 14x14@32
 		pool1 = pooling_layer(conv1, padding='SAME')
 		# Layer 3 = Convolution: 14x14@32 -> 14x14@64 + ReLU
-		conv2 = convolution_layer(pool1, filters=64, kernel_size=3, padding='SAME')
+		conv2 = convolution_layer(pool1, filters=64, kernel_size=5, padding='SAME')
 		# Layer 4 = Pooling: 14x14@64 -> 7x7@64
 		pool2 = pooling_layer(conv2, padding='SAME')
-		# Layer 5 = Convolution: 7x7@64 -> 7x7@128 + ReLU
-		conv3 = convolution_layer(pool2, filters=128, kernel_size=3, padding='SAME')
-		# Layer 6 = Pooling: 7x7@128 -> 4x4@128
-		pool3 = pooling_layer(conv3, padding='SAME')
-		# Layer 7 = Flatten: 4x4@128 -> 2048
-		flat = flatten_layer(pool3)
-		# Layer 8 = Fully Connected: 2048 -> 1024
+		# Layer 5 = Flatten: 7x7@64 -> 3136
+		flat = flatten_layer(pool2)
+		# Layer 6 = Fully Connected: 3136 -> 1024
 		fc1 = fully_connected_layer(flat, num_outputs=1024)
-		# Layer 9 = Fully Connected: 1024 -> 128
+		# Layer 7 = Fully Connected: 1024 -> 128
 		fc2 = fully_connected_layer(fc1, num_outputs=128)
-		# Layer 10 = Logits: 128 -> 10
+		# Layer 8 = Logits: 128 -> 10
 		logits = fully_connected_layer(fc2, num_outputs=num_classes, relu=False)
 		
 		cross_entropy = tf.nn.softmax_cross_entropy_with_logits_v2(logits=logits, labels=y)
@@ -104,4 +100,4 @@ if __name__ == '__main__':
 	with tf.variable_scope('ensemble', reuse=tf.AUTO_REUSE) as scope:
 		x = tf.placeholder(tf.float32, [None, num_inputs], name='x')
 		y = tf.placeholder(tf.float32, [None, num_classes], name='y')
-	model = VGGNet(num_classes, learning_rate)
+	model = AlexNet(num_classes, learning_rate)

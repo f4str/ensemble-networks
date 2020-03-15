@@ -1,6 +1,6 @@
 """
 convolutional neural network
-tensorflow 
+tensorflow
 cross entropy loss function
 relu activation function
 max pooling
@@ -12,7 +12,7 @@ based on LeNet
 import tensorflow as tf
 
 
-def convolution_layer(inputs, filters, kernel_size=5, strides=1, padding='VALID'):
+def convolution_layer(inputs, filters, kernel_size=5, strides=1, padding='SAME'):
 	channels = inputs.get_shape()[-1]
 	weights = tf.Variable(tf.random.truncated_normal(
 		shape=[kernel_size, kernel_size, channels, filters],
@@ -29,7 +29,7 @@ def convolution_layer(inputs, filters, kernel_size=5, strides=1, padding='VALID'
 	return tf.nn.relu(layer)
 
 
-def pooling_layer(inputs, k=2, padding='VALID'):
+def pooling_layer(inputs, k=2, padding='SAME'):
 	return tf.nn.max_pool2d(
 		inputs,
 		ksize=[1, k, k, 1],
@@ -66,21 +66,21 @@ class LeNet:
 		
 		# Layer 0 = Reshape: 784 -> 28x28@1
 		x_img = tf.reshape(x, shape=[-1, 28, 28, 1])
-		# Layer 1 = Convolution: 28x28@1 -> 28x28@6 + ReLU
-		conv1 = convolution_layer(x_img, filters=6, kernel_size=5, padding='SAME')
-		# Layer 2 = Pooling: 28x28@6 -> 14x14@6
-		pool1 = pooling_layer(conv1)
-		# Layer 3 = Convolution: 14x14@6 -> 10x10@16 + ReLU
-		conv2 = convolution_layer(pool1, filters=16, kernel_size=5, padding='VALID')
-		# Layer 4 = Pooling: 10x10@16 -> 5x5@16
-		pool2 = pooling_layer(conv2)
-		# Layer 5 = Flatten: 5x5@16 -> 400
+		# Layer 1 = Convolution: 28x28@1 -> 28x28@20 + ReLU
+		conv1 = convolution_layer(x_img, filters=20, kernel_size=5, padding='SAME')
+		# Layer 2 = Pooling: 28x28@20 -> 14x14@20
+		pool1 = pooling_layer(conv1, padding='SAME')
+		# Layer 3 = Convolution: 14x14@20 -> 14x14@50 + ReLU
+		conv2 = convolution_layer(pool1, filters=50, kernel_size=5, padding='SAME')
+		# Layer 4 = Pooling: 14x14@50 -> 7x7@50
+		pool2 = pooling_layer(conv2, padding='SAME')
+		# Layer 5 = Flatten: 7x7@50 -> 2450
 		flat = flatten_layer(pool2)
-		# Layer 6 = Fully Connected: 400 -> 120
-		fc1 = fully_connected_layer(flat, num_outputs=120)
-		# Layer 7 = Fully Connected: 120 -> 84
-		fc2 = fully_connected_layer(fc1, num_outputs=84)
-		# Layer 8 = Logits: 84 -> 10
+		# Layer 6 = Fully Connected: 2450 -> 500
+		fc1 = fully_connected_layer(flat, num_outputs=500)
+		# Layer 7 = Fully Connected: 500 -> 120
+		fc2 = fully_connected_layer(fc1, num_outputs=120)
+		# Layer 8 = Logits: 120 -> 10
 		logits = fully_connected_layer(fc2, num_outputs=num_classes, relu=False)
 		
 		cross_entropy = tf.nn.softmax_cross_entropy_with_logits_v2(logits=logits, labels=y)

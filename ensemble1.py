@@ -1,11 +1,19 @@
 """
-ensemble of feedforward neural networks
+ensemble of convolutional neural networks
 tensorflow
+cross entropy loss function
+relu activation function
+max pooling
+softmax logits
+adam optimizer
+based on LeNet and VGGNet
 """
 
 import tensorflow as tf
 from tensorflow.examples.tutorials.mnist import input_data
-from feedforward import FNN
+from lenet import LeNet
+from alexnet import AlexNet
+from vggnet import VGGNet
 
 
 def vote(tensor):
@@ -19,7 +27,7 @@ class Ensemble:
 	def __init__(self):
 		self.sess = tf.Session()
 		
-		self.learning_rate = 0.5
+		self.learning_rate = 0.001
 		self.batch_size = 128
 		
 		self.num_inputs = 784
@@ -42,9 +50,9 @@ class Ensemble:
 			self.y = tf.placeholder(tf.float32, [None, self.num_classes], name='y')
 		
 		self.networks = [
-			FNN(self.num_classes, self.learning_rate),
-			FNN(self.num_classes, self.learning_rate),
-			FNN(self.num_classes, self.learning_rate)
+			LeNet(self.num_classes, self.learning_rate),
+			AlexNet(self.num_classes, self.learning_rate),
+			VGGNet(self.num_classes, self.learning_rate)
 		]
 		self.loss = tf.reduce_mean([net.loss for net in self.networks])
 		
@@ -87,4 +95,4 @@ class Ensemble:
 
 if __name__ == '__main__':
 	model = Ensemble()
-	model.train(300)
+	model.train(100)
