@@ -2,13 +2,20 @@
 Ensemble of Convolutional Neural Networks
 MNIST Classifiers
 LeNet, AlexNet and VGGNet
-Concatenate all logits with another layer
+Average all Logits
 Train final layer
 """
 
 import tensorflow as tf
 from tensorflow.examples.tutorials.mnist import input_data
-from mnist_networks import LeNet, AlexNet, VGGNet, fully_connected_layer
+from mnist_networks import LeNet, AlexNet, VGGNet
+
+
+def vote(tensor):
+	unique, _, counts = tf.unique_with_counts(tensor)
+	majority = tf.argmax(counts)
+	prediction = tf.gather(unique, majority)
+	return prediction
 
 
 class Ensemble:
@@ -38,8 +45,10 @@ class Ensemble:
 			self.y = tf.placeholder(tf.float32, [None, self.num_classes], name='y')
 		
 		self.networks = [LeNet(), AlexNet(), VGGNet()]
-		concat = tf.concat([net.logits for net in self.networks], axis=1)
-		self.logits = fully_connected_layer(concat, num_outputs=10, relu=False)
+		self.loss = tf.reduce_mean([net.loss for net in self.networks])
+		
+		logits = tf.stack([net.logits for net in self.networks], axis=-1)
+		self.logits = tf.reduce_mean(logits, axis=-1)
 		
 		cross_entropy = tf.nn.softmax_cross_entropy_with_logits_v2(logits=self.logits, labels=self.y)
 		self.loss = tf.reduce_mean(cross_entropy)
