@@ -80,7 +80,7 @@ class Ensemble:
 		
 		loss, acc = self.sess.run([self.loss, self.accuracy], feed_dict=feed_dict)
 		print(f'test loss = {loss:.4f}, test acc = {acc:.4f}')
-	
+
 
 if __name__ == '__main__':
 	model = Ensemble()
