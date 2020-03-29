@@ -2,8 +2,8 @@
 Ensemble of Convolutional Neural Networks
 MNIST Classifiers
 LeNet, AlexNet and VGGNet
-Concatenate all logits with another layer
-Train final layer
+Concatenate all Logits
+Train ensemble
 """
 
 import tensorflow as tf

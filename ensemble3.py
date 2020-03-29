@@ -3,19 +3,12 @@ Ensemble of Convolutional Neural Networks
 MNIST Classifiers
 LeNet, AlexNet and VGGNet
 Average all Logits
-Train final layer
+Train individual model
 """
 
 import tensorflow as tf
 from tensorflow.examples.tutorials.mnist import input_data
 from mnist_networks import LeNet, AlexNet, VGGNet
-
-
-def vote(tensor):
-	unique, _, counts = tf.unique_with_counts(tensor)
-	majority = tf.argmax(counts)
-	prediction = tf.gather(unique, majority)
-	return prediction
 
 
 class Ensemble:
@@ -45,10 +38,9 @@ class Ensemble:
 			self.y = tf.placeholder(tf.float32, [None, self.num_classes], name='y')
 		
 		self.networks = [LeNet(), AlexNet(), VGGNet()]
-		self.loss = tf.reduce_mean([net.loss for net in self.networks])
 		
-		logits = tf.stack([net.logits for net in self.networks], axis=-1)
-		self.logits = tf.reduce_mean(logits, axis=-1)
+		stack = tf.stack([net.logits for net in self.networks], axis=-1)
+		self.logits = tf.reduce_mean(stack, axis=-1)
 		
 		cross_entropy = tf.nn.softmax_cross_entropy_with_logits_v2(logits=self.logits, labels=self.y)
 		self.loss = tf.reduce_mean(cross_entropy)
@@ -63,20 +55,22 @@ class Ensemble:
 		self.sess.run(tf.global_variables_initializer())
 		
 		for e in range(epochs):
-			x_batch, y_batch = self.training_data.next_batch(self.batch_size)
-			feed_dict = {self.x: x_batch, self.y: y_batch}
-			self.sess.run(self.optimizer, feed_dict=feed_dict)
-			train_loss, train_acc = self.sess.run([self.loss, self.accuracy], feed_dict=feed_dict)
-			
-			feed_dict = {self.x: self.X_valid, self.y: self.y_valid}
-			valid_loss, valid_acc = self.sess.run([self.loss, self.accuracy], feed_dict=feed_dict)
-			
-			print(f'epoch {e + 1}:',
-				f'train loss = {train_loss:.4f},',
-				f'train acc = {train_acc:.4f},',
-				f'valid loss = {valid_loss:.4f},',
-				f'valid acc = {valid_acc:.4f}'
-			)
+			print(f'epoch {e + 1}')
+			for idx, net in enumerate(self.networks):
+				x_batch, y_batch = self.training_data.next_batch(self.batch_size)
+				feed_dict = {self.x: x_batch, self.y: y_batch}
+				self.sess.run(net.optimizer, feed_dict=feed_dict)
+				train_loss, train_acc = self.sess.run([net.loss, net.accuracy], feed_dict=feed_dict)
+
+				feed_dict = {self.x: self.X_valid, self.y: self.y_valid}
+				valid_loss, valid_acc = self.sess.run([net.loss, net.accuracy], feed_dict=feed_dict)
+
+				print(f'\tnetwork {idx + 1}:',
+					f'train loss = {train_loss:.4f},',
+					f'train acc = {train_acc:.4f},',
+					f'valid loss = {valid_loss:.4f},',
+					f'valid acc = {valid_acc:.4f}'
+				)
 		
 		print('training complete')
 		
