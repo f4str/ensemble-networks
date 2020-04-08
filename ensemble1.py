@@ -1,14 +1,13 @@
 """
 Ensemble of Convolutional Neural Networks
 MNIST Classifiers
-LeNet, AlexNet and VGGNet
 Concatenate all Logits
 Train ensemble
 """
 
 import tensorflow as tf
 from tensorflow.examples.tutorials.mnist import input_data
-from mnist_networks import LeNet, AlexNet, VGGNet, fully_connected_layer
+from mnist_networks import LeNet, fully_connected_layer
 
 
 class Ensemble:
@@ -37,7 +36,7 @@ class Ensemble:
 			self.x = tf.placeholder(tf.float32, [None, self.num_inputs], name='x')
 			self.y = tf.placeholder(tf.float32, [None, self.num_classes], name='y')
 		
-		self.networks = [LeNet(), AlexNet(), VGGNet()]
+		self.networks = [LeNet(), LeNet(), LeNet()]
 		concat = tf.concat([net.logits for net in self.networks], axis=1)
 		self.logits = fully_connected_layer(concat, num_outputs=10, relu=False)
 		
@@ -83,4 +82,4 @@ class Ensemble:
 
 if __name__ == '__main__':
 	model = Ensemble()
-	model.train(10)
+	model.train(20)

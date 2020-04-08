@@ -1,14 +1,14 @@
 """
 Ensemble of Convolutional Neural Networks
 MNIST Classifiers
-Concatenate all Logits
+Average all Logits
 Train ensemble
 Include L2 weight difference in loss
 """
 
 import tensorflow as tf
 from tensorflow.examples.tutorials.mnist import input_data
-from mnist_networks import LeNet, fully_connected_layer
+from mnist_networks import LeNet
 
 
 class Ensemble:
@@ -38,8 +38,9 @@ class Ensemble:
 			self.y = tf.placeholder(tf.float32, [None, self.num_classes], name='y')
 		
 		self.networks = [LeNet(), LeNet(), LeNet()]
-		concat = tf.concat([net.logits for net in self.networks], axis=1)
-		self.logits = fully_connected_layer(concat, num_outputs=10, relu=False)
+		
+		stack = tf.stack([net.logits for net in self.networks], axis=-1)
+		self.logits = tf.reduce_mean(stack, axis=-1)
 		
 		cross_entropy = tf.nn.softmax_cross_entropy_with_logits_v2(logits=self.logits, labels=self.y)
 		l2_distance = tf.add_n([
@@ -48,7 +49,7 @@ class Ensemble:
 			tf.norm(self.networks[2].logits - self.networks[0].logits)
 		])
 		
-		self.loss = tf.reduce_sum(tf.reduce_mean(cross_entropy) - 0.0001 * l2_distance)
+		self.loss = tf.reduce_sum(tf.reduce_mean(cross_entropy) + 0.0001 * l2_distance)
 		self.optimizer = tf.train.AdamOptimizer(learning_rate=0.001).minimize(self.loss)
 		
 		self.prediction = tf.argmax(self.logits, axis=1)
