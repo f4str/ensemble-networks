@@ -1,93 +1,192 @@
-"""
-Ensemble of Convolutional Neural Networks
-MNIST Classifiers
-Average all Logits
-Train ensemble
-Include L2 weight difference in loss
-"""
-
+import time
+import numpy as np
 import tensorflow as tf
-from tensorflow.examples.tutorials.mnist import input_data
-from mnist_networks import LeNet
+import layers
+
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
 
 class Ensemble:
-	def __init__(self):
+	"""
+	concatenate logits and run through fully connected
+	include l2 difference in loss
+	"""
+	def __init__(self, num_classifiers=3, learning_rate=0.001, early_stopping=True, patience=4):
 		self.sess = tf.Session()
+		self.early_stopping = early_stopping
+		self.patience = patience
 		
-		self.learning_rate = 0.001
-		self.batch_size = 128
-		
-		self.num_inputs = 784
-		self.num_classes = 10
-		
-		self.load_data()
-		self.build()
+		self._build(num_classifiers, learning_rate)
 	
-	def load_data(self):
-		mnist = input_data.read_data_sets('data/MNIST/', one_hot=True)
-		self.training_data = mnist.train
-		self.X_valid = mnist.validation.images
-		self.y_valid = mnist.validation.labels
-		self.X_test = mnist.test.images
-		self.y_test = mnist.test.labels
-	
-	def build(self):
-		with tf.variable_scope('ensemble', reuse=tf.AUTO_REUSE) as scope:
-			self.x = tf.placeholder(tf.float32, [None, self.num_inputs], name='x')
-			self.y = tf.placeholder(tf.float32, [None, self.num_classes], name='y')
+	def _build(self, num_classifiers, learning_rate):
+		# inputs
+		self.X = tf.placeholder(tf.float32, [None, 28, 28])
+		self.y = tf.placeholder(tf.int32, [None])
+		one_hot_y = tf.one_hot(self.y, 10)
 		
-		self.networks = [LeNet(), LeNet(), LeNet()]
+		networks = [layers.feedforward(self.X) for _ in range(num_classifiers)]
+		self.individual_loss = [layers.loss(net, one_hot_y) for net in networks]
+		self.individual_accuracy = [layers.accuracy(net, one_hot_y) for net in networks]
 		
-		stack = tf.stack([net.logits for net in self.networks], axis=-1)
-		self.logits = tf.reduce_mean(stack, axis=-1)
-		
-		cross_entropy = tf.nn.softmax_cross_entropy_with_logits_v2(logits=self.logits, labels=self.y)
+		logits = layers.linear(tf.concat(networks, axis=-1), 10, bias=False)
 		l2_distance = tf.add_n([
-			tf.norm(self.networks[0].logits - self.networks[1].logits),
-			tf.norm(self.networks[1].logits - self.networks[2].logits),
-			tf.norm(self.networks[2].logits - self.networks[0].logits)
+			tf.norm(networks[0] - networks[1]),
+			tf.norm(networks[1] - networks[2]),
+			tf.norm(networks[2] - networks[0])
 		])
 		
-		self.loss = tf.reduce_sum(tf.reduce_mean(cross_entropy) + 0.0001 * l2_distance)
-		self.optimizer = tf.train.AdamOptimizer(learning_rate=0.001).minimize(self.loss)
+		cross_entropy = tf.nn.softmax_cross_entropy_with_logits_v2(logits=logits, labels=one_hot_y)
+		self.loss = tf.reduce_mean(cross_entropy) - 1e-5 * l2_distance
+		optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
+		self.train_op = optimizer.minimize(self.loss)
 		
-		self.prediction = tf.argmax(self.logits, axis=1)
-		correct_prediction = tf.equal(self.prediction, tf.argmax(self.y, axis=1))
+		correct_prediction = tf.equal(tf.argmax(logits, axis=1), tf.argmax(one_hot_y, axis=1))
 		self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-		self.predict = tf.nn.softmax(self.logits)
+		self.prediction = tf.argmax(logits, axis=1)
+	
+	def fit(self, X, y, epochs=100, batch_size=128, validation_split=0.2, verbose=True):
+		# shuffle input data
+		p = np.random.permutation(len(X))
+		X = np.array(X)[p]
+		y = np.array(y)[p]
 		
-	def train(self, epochs=500):
+		# split into training and validation sets
+		valid_size = int(validation_split * len(X))
+		train_size = len(X) - valid_size
+		
+		dataset = tf.data.Dataset.from_tensor_slices((X, y))
+		train_dataset = dataset.skip(valid_size).shuffle(train_size, reshuffle_each_iteration=True).batch(batch_size)
+		valid_dataset = dataset.take(valid_size).batch(batch_size)
+		
+		# create batch iterator
+		train_iterator = train_dataset.make_initializable_iterator()
+		valid_iterator = valid_dataset.make_initializable_iterator()
+		
+		X_train, y_train = train_iterator.get_next()
+		X_valid, y_valid = valid_iterator.get_next()
+		
+		total_train_loss = []
+		total_train_acc = []
+		total_valid_loss = []
+		total_valid_acc = []
+		best_acc = 0
+		no_acc_change = 0
+		
 		self.sess.run(tf.global_variables_initializer())
 		
 		for e in range(epochs):
-			x_batch, y_batch = self.training_data.next_batch(self.batch_size)
-			feed_dict = {self.x: x_batch, self.y: y_batch}
-			self.sess.run(self.optimizer, feed_dict=feed_dict)
-			train_loss, train_acc = self.sess.run([self.loss, self.accuracy], feed_dict=feed_dict)
+			# initialize training batch iterator
+			self.sess.run(train_iterator.initializer)
 			
-			feed_dict = {self.x: self.X_valid, self.y: self.y_valid}
-			valid_loss, valid_acc = self.sess.run([self.loss, self.accuracy], feed_dict=feed_dict)
+			if verbose:
+				start = time.time()
+				print(f'epoch {e + 1} / {epochs}:')
 			
-			print(f'epoch {e + 1}:',
-				f'train loss = {train_loss:.4f},',
-				f'train acc = {train_acc:.4f},',
-				f'valid loss = {valid_loss:.4f},',
-				f'valid acc = {valid_acc:.4f}'
-			)
+			# train on training data
+			total = 0
+			train_loss = 0
+			train_acc = 0
+			try:
+				while True:
+					X_batch, y_batch = self.sess.run([X_train, y_train])
+					size = len(X_batch)
+					
+					_, loss, acc = self.sess.run(
+						[self.train_op, self.loss, self.accuracy], 
+						feed_dict={self.X: X_batch, self.y: y_batch}
+					)
+					train_loss += loss * size
+					train_acc += acc * size
+					
+					if verbose:
+						current = time.time()
+						total += size
+						print(f'[{total} / {train_size}] - {(current - start):.2f} s -', 
+							f'train loss = {(train_loss / total):.4f},',
+							f'train acc = {(train_acc / total):.4f}',
+							end='\r'
+						)
+			except tf.errors.OutOfRangeError:
+				pass
+			
+			train_loss /= train_size
+			train_acc /= train_size
+			total_train_loss.append(train_loss)
+			total_train_acc.append(train_acc)
+			
+			# initialize validation batch iterator
+			self.sess.run(valid_iterator.initializer)
+			
+			# test on validation data
+			valid_loss = 0
+			valid_acc = 0
+			try:
+				while True:
+					X_batch, y_batch = self.sess.run([X_valid, y_valid])
+					size = len(X_batch)
+					
+					loss, acc = self.sess.run(
+						[self.loss, self.accuracy], 
+						feed_dict={self.X: X_batch, self.y: y_batch}
+					)
+					valid_loss += loss * size
+					valid_acc += acc * size
+			except tf.errors.OutOfRangeError:
+				pass
+			
+			valid_loss /= valid_size
+			valid_acc /= valid_size
+			total_valid_loss.append(valid_loss)
+			total_valid_acc.append(valid_acc)
+			
+			if verbose:
+				end = time.time()
+				print(f'[{total} / {train_size}] - {(end - start):.2f} s -',
+					f'train loss = {train_loss:.4f},',
+					f'train acc = {train_acc:.4f},',
+					f'valid loss = {valid_loss:.4f},',
+					f'valid acc = {valid_acc:.4f}'
+				)
+			
+			# early stopping
+			if self.early_stopping:
+				if valid_acc > best_acc:
+					best_acc = valid_acc
+					no_acc_change = 0
+				else:
+					no_acc_change += 1
+				
+				if no_acc_change >= self.patience:
+					if verbose:
+						print('early stopping')
+					break
 		
-		print('training complete')
-		
-		feed_dict = {self.x: self.X_test, self.y: self.y_test}
-		
-		loss, acc = self.sess.run([self.loss, self.accuracy], feed_dict=feed_dict)
-		print(f'test loss = {loss:.4f}, test acc = {acc:.4f}')
-		
-		for idx, net in enumerate(self.networks):
-			loss, acc = self.sess.run([net.loss, net.accuracy], feed_dict=feed_dict)
-			print(f'\tnetwork {idx + 1}: test loss = {loss:.4f}, test acc = {acc:.4f}')
+		return total_train_loss, total_train_acc, total_valid_loss, total_valid_acc
+	
+	def evaluate(self, X, y):
+		loss, acc = self.sess.run([self.loss, self.accuracy], feed_dict={self.X: X, self.y: y})
+		return loss, acc
+	
+	def evaluate_individuals(self, X, y):
+		for idx, (network_loss, network_acc) in enumerate(zip(self.individual_loss, self.individual_accuracy)):
+			loss, acc = self.sess.run([network_loss, network_acc], feed_dict={self.X: X, self.y: y})
+			print(f'network {idx + 1}: test loss = {loss:.4f}, test acc = {acc:.4f}')
+	
+	def predict(self, X):
+		y_pred = self.sess.run(self.prediction, feed_dict={self.X: X})
+		return y_pred
 
 
 if __name__ == '__main__':
+	(X_train, y_train), (X_test, y_test) = tf.keras.datasets.fashion_mnist.load_data()
+	X_train = X_train.astype(np.float32) / 255
+	X_test = X_test.astype(np.float32) / 255
+	
 	model = Ensemble()
-	model.train(20)
+	model.fit(X_train, y_train, epochs=10)
+	loss, acc = model.evaluate(X_test, y_test)
+	print(f'ensemble: test loss = {loss:.4f}, test acc = {acc:.4f}')
+	
+	model.evaluate_individuals(X_test, y_test)
